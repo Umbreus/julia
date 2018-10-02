@@ -45,51 +45,51 @@ const INV_2PI = UInt64[
     0x1580_cc11_bf1e_daea]
 
 @inline function cody_waite_2c_pio2(x::Float64, fn, n)
-    pio2_1 = 1.57079632673412561417e+00
+    pio2_1  = 1.57079632673412561417e+00
     pio2_1t = 6.07710050650619224932e-11
 
-    z = muladd(-fn, pio2_1, x) # x - fn*pio2_1
+    z  = muladd(-fn, pio2_1, x) # x - fn*pio2_1
     y1 = muladd(-fn, pio2_1t, z) # z - fn*pio2_1t
     y2 = muladd(-fn, pio2_1t, (z - y1)) # (z - y1) - fn*pio2_1t
     n, DoubleFloat64(y1, y2)
 end
 
 @inline function cody_waite_ext_pio2(x::Float64, xhp)
-    pio2_1 = 1.57079632673412561417e+00
+    pio2_1  = 1.57079632673412561417e+00
     pio2_1t = 6.07710050650619224932e-11
-    pio2_2 = 6.07710050630396597660e-11
+    pio2_2  = 6.07710050630396597660e-11
     pio2_2t = 2.02226624879595063154e-21
-    pio2_3 = 2.02226624871116645580e-21
+    pio2_3  = 2.02226624871116645580e-21
     pio2_3t = 8.47842766036889956997e-32
 
     fn = round(x*(2/pi)) # round to integer
     # on older systems, the above could be faster with
     # rf = 1.5/eps(Float64)
-    # fn = (x*(2/pi)+rf)-rf
+    # fn = (x*(2/pi) + rf) - rf
 
     r  = muladd(-fn, pio2_1, x) # x - fn*pio2_1
     w  = fn*pio2_1t # 1st round good to 85 bit
     j  = xhp>>20
-    y1 = r-w
+    y1 = r - w
     high = highword(y1)
-    i = j-((high>>20)&0x7ff)
+    i = j - ((high>>20)&0x7ff)
     if i>16  # 2nd iteration needed, good to 118
         t  = r
         w  = fn*pio2_2
-        r  = t-w
-        w  = muladd(fn, pio2_2t,-((t-r)-w))
-        y1 = r-w
+        r  = t - w
+        w  = muladd(fn, pio2_2t,-((t - r) - w))
+        y1 = r - w
         high = highword(y1)
-        i = j-((high>>20)&0x7ff)
+        i = j - ((high>>20)&0x7ff)
         if i>49 # 3rd iteration need, 151 bits acc
             t  = r # will cover all possible cases
             w  = fn*pio2_3
-            r  = t-w
-            w  = muladd(fn, pio2_3t, -((t-r)-w))
-            y1 = r-w
+            r  = t - w
+            w  = muladd(fn, pio2_3t, -((t - r) - w))
+            y1 = r - w
         end
     end
-    y2 = (r-y1)-w
+    y2 = (r - y1) - w
     return unsafe_trunc(Int, fn), DoubleFloat64(y1, y2)
 end
 
@@ -106,21 +106,21 @@ function fromfraction(f::Int128)
     end
 
     # 1. get leading term truncated to 26 bits
-    s = ((f < 0) % UInt64) << 63     # sign bit
-    x = abs(f) % UInt128             # magnitude
-    n1 = 128-leading_zeros(x)         # ndigits0z(x,2)
-    m1 = ((x >> (n1-26)) % UInt64) << 27
-    d1 = ((n1-128+1021) % UInt64) << 52
+    s  = ((f < 0) % UInt64) << 63     # sign bit
+    x  = abs(f) % UInt128             # magnitude
+    n1 = 128 - leading_zeros(x)         # ndigits0z(x,2)
+    m1 = ((x >> (n1 - 26)) % UInt64) << 27
+    d1 = ((n1 - 128 + 1021) % UInt64) << 52
     z1 = reinterpret(Float64, s | (d1 + m1))
 
     # 2. compute remaining term
-    x2 = (x - (UInt128(m1) << (n1-53)))
+    x2 = (x - (UInt128(m1) << (n1 - 53)))
     if x2 == 0
         return (z1, 0.0)
     end
-    n2 = 128-leading_zeros(x2)
-    m2 = (x2 >> (n2-53)) % UInt64
-    d2 = ((n2-128+1021) % UInt64) << 52
+    n2 = 128 - leading_zeros(x2)
+    m2 = (x2 >> (n2 - 53)) % UInt64
+    d2 = ((n2 - 128 + 1021) % UInt64) << 52
     z2 = reinterpret(Float64,  s | (d2 + m2))
     return (z1,z2)
 end
@@ -130,14 +130,14 @@ function paynehanek(x::Float64)
     #
     #    x = X * 2^k,
     #
-    # where 2^(n-1) <= X < 2^n  is an n-bit integer (n = 53, k = exponent(x)-52 )
+    # where 2^(n - 1) <= X < 2^n  is an n-bit integer (n = 53, k = exponent(x) - 52 )
 
     # Computations are integer based, so reinterpret x as UInt64
     u = reinterpret(UInt64, x)
     # Strip x of exponent bits and replace with ^1
     X = (u & significand_mask(Float64)) | (one(UInt64) << significand_bits(Float64))
     # Get k from formula above
-    # k = exponent(x)-52
+    # k = exponent(x) - 52
     k = Int((u & exponent_mask(Float64)) >> significand_bits(Float64)) - exponent_bias(Float64) - significand_bits(Float64)
 
     # 2. Let α = 1/2π, then:
@@ -152,9 +152,9 @@ function paynehanek(x::Float64)
     #     A  = mod(ldexp(α,k), 1)
     #     z1 = ldexp(A,64)
     #     a1 = trunc(UInt64, z1)
-    #     z2 = ldexp(z1-a1, 64)
+    #     z2 = ldexp(z1 - a1, 64)
     #     a2 = trunc(UInt64, z2)
-    #     z3 = ldexp(z2-a2, 64)
+    #     z3 = ldexp(z2 - a2, 64)
     #     a3 = trunc(UInt64, z3)
 
     # This is equivalent to
@@ -186,13 +186,13 @@ function paynehanek(x::Float64)
     w1 = UInt128(X*a1) << 64 # overflow becomes integer
     w2 = widemul(X,a2)
     w3 = widemul(X,a3) >> 64
-    w = w1 + w2 + w3         # quotient fraction after division by 2π
+    w  = w1 + w2 + w3         # quotient fraction after division by 2π
 
     # adjust for sign of x
     w = flipsign(w,x)
 
     # 4. convert to quadrant, quotient fraction after division by π/2:
-    q = (((w>>125)%Int +1)>>1) # nearest quadrant
+    q = (((w>>125)%Int + 1)>>1) # nearest quadrant
     f = (w<<2) % Int128 # fraction part of quotient after division by π/2, taking values on [-0.5,0.5)
 
     # 5. convert quotient fraction to split precision Float64
@@ -202,7 +202,7 @@ function paynehanek(x::Float64)
     pio2 = 1.5707963267948966
     pio2_hi = 1.5707963407039642
     pio2_lo = -1.3909067614167116e-8
-    y_hi = (z_hi+z_lo)*pio2
+    y_hi = (z_hi + z_lo)*pio2
     y_lo = (((z_hi*pio2_hi - y_hi) + z_hi*pio2_lo) + z_lo*pio2_hi) + z_lo*pio2_lo
     return q, DoubleFloat64(y_hi, y_lo)
 end
@@ -316,9 +316,9 @@ end
     if absxd < Float32(pi)/2*2.0f0^28 # medium size */
         # use Cody Waite reduction with two coefficients
         fn = round(xd*inv_pio2)
-        r  = xd-fn*pio2_1
+        r  = xd - fn*pio2_1
         w  = fn*pio2_1t
-        y = r-w;
+        y  = r - w;
         return unsafe_trunc(Int, fn), DoubleFloat32(y)
     end
     n, y = rem_pio2_kernel(xd)
